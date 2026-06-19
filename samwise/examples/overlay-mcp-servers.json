@@ -1,0 +1,38 @@
+// ===========================================================================
+// OVERLAY OVERRIDE: "mcpServers"
+//
+// Adds extra MCP servers to the repo's .mcp.json, on top of the neutral core
+// (microsoft-learn, nuget-vulnerabilities, binlog, atlassian, github).
+//
+// Use it for org-internal or project-specific servers you don't want baked into
+// the published package - internal databases, private gateways, in-house tools.
+//
+// Merge rules: each server is added under "mcpServers". A server whose NAME
+// already exists is left untouched (unless you run init with --force). Your
+// other servers and top-level keys in .mcp.json are preserved.
+//
+// Apply with:  samwise init --overlay examples/overlay-mcp-servers.json
+//
+// All values below are FICTIONAL - replace with your own.
+// ===========================================================================
+{
+  "mcpServers": {
+
+    // An HTTP MCP server (e.g. an internal Data API Builder / REST-style MCP).
+    "acme-internal-db": {
+      "type": "http",
+      "url": "http://db-mcp.acme.internal:5000/mcp"
+    },
+
+    // A stdio MCP server launched as a local process. "args" are passed to the
+    // command; "env" sets environment variables for the process.
+    "acme-toolbox": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@acme/mcp-toolbox", "--profile", "default"],
+      "env": {
+        "ACME_REGION": "eu-west-1"
+      }
+    }
+  }
+}

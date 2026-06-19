@@ -1,0 +1,47 @@
+// ===========================================================================
+// OVERLAY OVERRIDE: "settings.permissions"
+//
+// Adds permission rules to the repo's .claude/settings.json, on top of the
+// core allow/deny/ask lists the tool already installs. (Claude renderer.)
+//
+// Three lists:
+//   - allow : tool calls auto-approved without prompting
+//   - deny  : tool calls always blocked
+//   - ask   : tool calls that always prompt for confirmation
+//
+// Rule format is Claude Code's permission syntax: "Tool(command:pattern)".
+// e.g. Bash(az:*) matches any `az ...` command; PowerShell(Get-*) matches any
+// Get- cmdlet; mcp__acme-internal-db__* matches that server's tools.
+//
+// Merge rules: these are UNIONED with the existing lists - duplicates are
+// dropped, your existing entries are kept. (--force is not needed for this.)
+//
+// Apply with:  samwise init --overlay examples/overlay-permissions.json
+//
+// All values below are FICTIONAL - replace with your own.
+// ===========================================================================
+{
+  "settings": {
+    "permissions": {
+
+      // Auto-approve safe, frequent commands so you aren't prompted constantly.
+      "allow": [
+        "Bash(az:*)",
+        "Bash(kubectl get:*)",
+        "mcp__acme-internal-db__*"
+      ],
+
+      // Hard-block commands that should never run in this repo.
+      "deny": [
+        "Bash(terraform apply:*)",
+        "Bash(kubectl delete:*)"
+      ],
+
+      // Always confirm before these (sensitive but sometimes needed).
+      "ask": [
+        "Bash(az group delete:*)",
+        "Bash(helm uninstall:*)"
+      ]
+    }
+  }
+}

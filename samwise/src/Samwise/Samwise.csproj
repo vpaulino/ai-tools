@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RollForward>Major</RollForward>
+
+    <!-- Pack as a .NET global/local tool -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>samwise</ToolCommandName>
+    <PackageId>Samwise</PackageId>
+    <Version>0.7.0</Version>
+    <Authors>Vitor Paulino</Authors>
+    <Description>Samwise is the loyal tool that helps a developer carry their work: it bootstraps a repository's AI-assistant setup (skills, hooks, MCP servers, settings) for Claude Code, and (via renderers) for OpenAI Codex and GitHub Copilot. Vendor- and org-neutral core; org-specific values are supplied at init time via flags/prompts or an optional --overlay file. Idempotent and re-runnable.</Description>
+    <PackageTags>samwise;claude-code;codex;copilot;mcp;skills;agents;bootstrap;dev-tooling</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/vpaulino/ai-tools</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/vpaulino/ai-tools</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <!-- payload/*.ps1 are data files, not NuGet install scripts -> silence NU5111. -->
+    <NoWarn>$(NoWarn);NU5111</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <!-- Everything under payload/ is copied next to the DLL on build/publish; for a
+       PackAsTool package the publish output is packed automatically, so the tool
+       reads the payload at runtime from AppContext.BaseDirectory. No Pack=true here
+       (that would also dump the files into content/ — the wrong place for a tool). -->
+  <ItemGroup>
+    <Content Include="payload\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>false</Pack>
+    </Content>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

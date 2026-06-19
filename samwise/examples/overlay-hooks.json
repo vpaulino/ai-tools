@@ -1,0 +1,41 @@
+// ===========================================================================
+// OVERLAY OVERRIDE: "settings.hooks"
+//
+// Adds hook wiring to the repo's .claude/settings.json. Hooks are commands
+// Claude Code runs automatically at lifecycle events (SessionStart, PreToolUse,
+// PostToolUse, Stop, ...). This is how you attach org-specific automation that
+// the core package doesn't ship. (Hooks are a Claude-renderer feature; Codex
+// and Copilot have no equivalent, so this section is ignored for those.)
+//
+// IMPORTANT - merge rule for hooks: an event you ALREADY have (e.g. the core
+// PreToolUse / SessionStart wiring) is left untouched, so this overlay can only
+// ADD NEW events safely. To change an event the core already defines, run init
+// with --force (it will then replace that event's wiring).
+//
+// Reference the script via $CLAUDE_PROJECT_DIR so it resolves inside whatever
+// repo init ran in. Ship the script itself via the "skillsDir"-style approach
+// or place it under .claude/hooks/ (see overlay-skills.json for copying files).
+//
+// Apply with:  samwise init --overlay examples/overlay-hooks.json
+//
+// All values below are FICTIONAL - replace with your own.
+// ===========================================================================
+{
+  "settings": {
+    "hooks": {
+
+      // Example: run a formatter/notification after every file edit or write.
+      "PostToolUse": [
+        {
+          "matcher": "Edit|Write",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/acme-post-edit.ps1\""
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

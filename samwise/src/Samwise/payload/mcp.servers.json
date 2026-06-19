@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "microsoft-learn": {
+      "type": "http",
+      "url": "https://learn.microsoft.com/api/mcp"
+    },
+    "nuget-vulnerabilities": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "dnx",
+        "NuGet.Mcp.Server",
+        "--source",
+        "https://api.nuget.org/v3/index.json",
+        "--yes"
+      ],
+      "env": {}
+    },
+    "binlog": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "dnx",
+        "Microsoft.AITools.BinlogMcp",
+        "--yes"
+      ],
+      "env": {}
+    },
+    "atlassian": {
+      "type": "http",
+      "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/"
+    }
+  }
+}

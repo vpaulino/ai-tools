@@ -1,0 +1,31 @@
+// ===========================================================================
+// OVERLAY OVERRIDE: "skillsDir"
+//
+// Copies a folder of EXTRA skills into the repo, on top of the skills the core
+// package ships. Use it for org- or domain-specific skills you don't want in
+// the public package (internal runbooks, house conventions, product playbooks).
+//
+// "skillsDir" is a path to a folder that contains one sub-folder per skill, each
+// with a SKILL.md (same layout as the core skills). It may be:
+//   - relative to THIS overlay file (e.g. "./acme-skills"), or
+//   - an absolute path.
+//
+// Expected layout of the referenced folder:
+//   acme-skills/
+//     acme-release-runbook/SKILL.md
+//     acme-incident-response/SKILL.md
+//
+// These skills are rendered per platform like the core skills: Claude gets
+// .claude/skills/, Codex gets playbook files + an AGENTS.md index entry, and
+// Copilot gets .github/instructions/*.instructions.md.
+//
+// Merge rule: each skill file is copied only if it doesn't already exist
+// (unless init is run with --force).
+//
+// Apply with:  samwise init --overlay examples/overlay-skills.json
+//
+// The path below is FICTIONAL - point it at your own skills folder.
+// ===========================================================================
+{
+  "skillsDir": "./acme-skills"
+}

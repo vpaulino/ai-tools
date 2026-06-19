@@ -1,0 +1,70 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "ListMcpResourcesTool",
+      "ReadMcpResourceTool"
+    ],
+    "deny": [
+      "Bash(diskpart:*)",
+      "PowerShell(diskpart:*)",
+      "Bash(format:*)",
+      "PowerShell(Format-Volume:*)",
+      "PowerShell(Clear-Disk:*)",
+      "PowerShell(Remove-Partition:*)",
+      "PowerShell(Initialize-Disk:*)",
+      "Bash(mkfs:*)",
+      "Bash(dd:*)",
+      "Bash(shutdown:*)",
+      "PowerShell(Stop-Computer:*)",
+      "PowerShell(Restart-Computer:*)"
+    ],
+    "ask": [
+      "Edit",
+      "Write",
+      "Bash",
+      "PowerShell",
+      "Bash(reg:*)",
+      "Bash(reg.exe:*)",
+      "Bash(regedit:*)",
+      "PowerShell(reg:*)",
+      "PowerShell(reg.exe:*)",
+      "PowerShell(regedit:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/prev-session-summary.ps1\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/http-mutation-guard.ps1\"", "if": "PowerShell(Invoke-RestMethod:*)" },
+          { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/http-mutation-guard.ps1\"", "if": "PowerShell(Invoke-WebRequest:*)" },
+          { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/http-mutation-guard.ps1\"", "if": "PowerShell(curl:*)" },
+          { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/http-mutation-guard.ps1\"", "if": "PowerShell(wget:*)" },
+          { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/http-mutation-guard.ps1\"", "if": "Bash(curl:*)" },
+          { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/http-mutation-guard.ps1\"", "if": "Bash(wget:*)" }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/mcp-read-allow.ps1\""
+          }
+        ]
+      }
+    ]
+  }
+}

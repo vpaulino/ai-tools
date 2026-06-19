@@ -1,0 +1,9 @@
+bin/
+obj/
+artifacts/
+.claude/settings.local.json
+.vs/
+TestResults/
+*.nupkg
+*.snupkg
+*.pdb
