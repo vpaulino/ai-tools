@@ -1,0 +1,52 @@
+name: publish
+
+# Releasing: push a version tag like `v0.7.1`. This builds, tests, packs Samwise
+# with that version, publishes it to NuGet.org, and creates a GitHub Release.
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write   # to create the GitHub Release
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Derive version from tag
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: dotnet run --project samwise/tests/Samwise.Tests -c Release
+
+      - name: Pack
+        run: >
+          dotnet pack samwise/src/Samwise/Samwise.csproj
+          -c Release
+          -p:Version=${{ steps.ver.outputs.version }}
+          -o ./nupkg
+
+      - name: Push to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: >
+          dotnet nuget push "./nupkg/*.nupkg"
+          --api-key "$NUGET_API_KEY"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${GITHUB_REF_NAME}"
+          ./nupkg/*.nupkg
+          --title "Samwise ${{ steps.ver.outputs.version }}"
+          --generate-notes

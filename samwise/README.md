@@ -45,6 +45,15 @@ leaving any surrounding content you add untouched.
 
 ## Install Scopes
 
+Once published to NuGet.org, the simplest install is:
+
+```pwsh
+dotnet tool install --global Samwise
+samwise init
+```
+
+The examples below use `--add-source <feed>` for installing from a local or private
+feed (e.g. CI artifacts) before publication; omit it when installing from NuGet.org.
 The package is a normal .NET tool, so it can be installed in three useful ways.
 
 ### Project-Local

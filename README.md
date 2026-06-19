@@ -1,5 +1,7 @@
 # ai-tools
 
+[![ci](https://github.com/vpaulino/ai-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/vpaulino/ai-tools/actions/workflows/ci.yml)
+
 A home for AI / developer tooling and the NuGet packages built around it.
 Each tool lives in its own top-level folder with its own README, and ships as
 an independent package.
@@ -22,6 +24,15 @@ cd ai-tools
 Then open the folder of the tool you want — start with [`samwise/`](samwise/),
 whose README covers install, usage, and how it renders for each assistant.
 
+### Install a published tool
+
+Once a tool is published to NuGet.org, install it directly (no `--add-source`):
+
+```pwsh
+dotnet tool install --global Samwise
+samwise init
+```
+
 ### Build & test Samwise
 
 ```pwsh
@@ -32,6 +43,32 @@ dotnet pack  -c Release -o ../../artifacts
 # run the test suite (builds the tool and exercises every renderer)
 dotnet run --project ../../tests/Samwise.Tests -c Release
 ```
+
+## Releasing (CI/CD)
+
+- **CI** — `.github/workflows/ci.yml` builds and runs the full test suite on every
+  push and pull request to `main`.
+- **Publish** — `.github/workflows/publish.yml` triggers on a version tag (`v*`).
+  It tests, packs the tool with the tag's version, pushes it to NuGet.org, and
+  creates a GitHub Release with the `.nupkg` attached.
+
+Release flow:
+
+```pwsh
+# work on a branch, open a PR, merge to main (CI must be green)
+git tag v0.7.1
+git push origin v0.7.1        # -> publish workflow ships Samwise 0.7.1 to NuGet
+```
+
+One-time setup — add a NuGet push key as a repo secret (create one at
+<https://www.nuget.org/account/apikeys> with "Push" scope):
+
+```pwsh
+gh secret set NUGET_API_KEY --repo vpaulino/ai-tools
+```
+
+The tag drives the package version (via `-p:Version=`), so the `<Version>` in the
+csproj is only the local/dev default.
 
 ## Repository conventions
 

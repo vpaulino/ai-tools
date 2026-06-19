@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build
+        run: dotnet build samwise/src/Samwise/Samwise.csproj -c Release
+
+      - name: Test (builds the tool and exercises every renderer)
+        run: dotnet run --project samwise/tests/Samwise.Tests -c Release
