@@ -60,12 +60,10 @@ git tag v0.7.1
 git push origin v0.7.1        # -> publish workflow ships Samwise 0.7.1 to NuGet
 ```
 
-One-time setup — add a NuGet push key as a repo secret (create one at
-<https://www.nuget.org/account/apikeys> with "Push" scope):
-
-```pwsh
-gh secret set NUGET_API_KEY --repo vpaulino/ai-tools
-```
+Publishing uses **NuGet Trusted Publishing** (OIDC) — no API key is stored. A
+trusted-publishing policy on nuget.org (owner `vpaulino`, repository `ai-tools`,
+workflow `publish.yml`) authorizes the workflow; at release time GitHub issues a
+short-lived token that `NuGet/login@v1` exchanges for a 1-hour publish key.
 
 The tag drives the package version (via `-p:Version=`), so the `<Version>` in the
 csproj is only the local/dev default.

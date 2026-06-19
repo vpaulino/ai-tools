@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write   # to create the GitHub Release
+  id-token: write   # OIDC token for NuGet trusted publishing
 
 jobs:
   publish:
@@ -33,12 +34,18 @@ jobs:
           -p:Version=${{ steps.ver.outputs.version }}
           -o ./nupkg
 
+      # Trusted Publishing: exchange the GitHub OIDC token for a short-lived
+      # (1-hour) nuget.org API key. No stored secret. Done right before push.
+      - name: NuGet login (OIDC -> short-lived API key)
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: vpaulino   # nuget.org profile name (NOT email); owner of the trusted-publishing policy
+
       - name: Push to NuGet.org
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: >
           dotnet nuget push "./nupkg/*.nupkg"
-          --api-key "$NUGET_API_KEY"
+          --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
           --source https://api.nuget.org/v3/index.json
           --skip-duplicate
 
