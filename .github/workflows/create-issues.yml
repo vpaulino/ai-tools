@@ -24,7 +24,7 @@ jobs:
             local title="$1"
             local label="$2"
             local body="$3"
-
+            body="$(printf '%s' "$body" | sed 's/^          //')"
             # Skip if an issue with this exact title already exists
             existing=$(gh issue list --repo "$REPO" --search "\"$title\" in:title" --json title --jq '.[].title' 2>/dev/null || true)
             if echo "$existing" | grep -qF "$title"; then
