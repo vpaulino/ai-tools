@@ -1,0 +1,423 @@
+name: Seed product-suite issues
+
+# Run this workflow once to create all the tracked issues for the Samwise
+# product suite roadmap.  It is idempotent: it checks whether an issue with
+# the same title already exists and skips it if so.
+on:
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  create-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          create_issue() {
+            local title="$1"
+            local label="$2"
+            local body="$3"
+            body="$(printf '%s' "$body" | sed 's/^          //')"
+            # Skip if an issue with this exact title already exists
+            existing=$(gh issue list --repo "$REPO" --search "\"$title\" in:title" --json title --jq '.[].title' 2>/dev/null || true)
+            if echo "$existing" | grep -qF "$title"; then
+              echo "SKIP (exists): $title"
+              return
+            fi
+
+            gh issue create \
+              --repo "$REPO" \
+              --title "$title" \
+              --label "$label" \
+              --body "$body"
+            echo "CREATED: $title"
+          }
+
+          # ---------------------------------------------------------------------------
+          # Ensure labels exist
+          # ---------------------------------------------------------------------------
+          for label in "product-suite" "roadmap" "enhancement"; do
+            if ! gh label list --repo "$REPO" --json name --jq '.[].name' | grep -Fxq "$label"; then
+              gh label create "$label" --repo "$REPO" \
+                --description "Samwise tracking" \
+                --color "0075ca"
+            fi
+          done
+
+          # ---------------------------------------------------------------------------
+          # Suite: Samwise Plan
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Suite] Samwise Plan – convert work items into implementation plans" \
+            "product-suite,enhancement" \
+            "## Goal
+          Connect to Jira, Azure DevOps, or GitHub Issues via MCP and generate a structured implementation plan from a work item.
+
+          ## CLI sketch
+          \`\`\`
+          samwise plan --issue 123
+          samwise plan --pbi AB#456 --ado-org contoso
+          \`\`\`
+
+          ## Expected output
+          \`\`\`markdown
+          # Implementation Plan
+          ## Goal
+          ## Current assumptions
+          ## Files likely affected
+          ## API / schema impact
+          ## Test strategy
+          ## Rollout strategy
+          ## Risks
+          ## Questions before implementation
+          \`\`\`
+
+          ## Why
+          Teams start work with context instead of vague tickets.
+          Seeds: existing \`start-pbi\`, \`migration-strategy\`, and \`safe-evolution\` playbooks."
+
+          # ---------------------------------------------------------------------------
+          # Suite: Samwise Code
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Suite] Samwise Code – language/framework-specific playbooks" \
+            "product-suite,enhancement" \
+            "## Goal
+          Provide language- and framework-specific coding playbooks that encode engineering standards as reusable AI workflows.
+
+          ## Initial playbook targets
+          - .NET Web API
+          - Blazor
+          - Entity Framework Core
+          - EF migrations
+          - Unit / integration tests
+          - Kubernetes manifests
+          - Docker / containerization
+          - Observability (OpenTelemetry)
+
+          ## CLI sketch
+          \`\`\`
+          samwise code add dotnet-api
+          samwise code add ef-migrations
+          samwise code render --platform all
+          \`\`\`
+
+          ## Why
+          Turns engineering standards into reusable AI workflows instead of ad-hoc prompts."
+
+          # ---------------------------------------------------------------------------
+          # Suite: Samwise Review
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Suite] Samwise Review – structured AI-assisted PR review" \
+            "product-suite,enhancement" \
+            "## Goal
+          Productize the existing \`staff-review\` skill into a first-class PR review command that runs a repeatable, profile-driven review process.
+
+          ## CLI sketch
+          \`\`\`
+          samwise review --target-pr 123 --profile evolvability
+          samwise review --target-pr 123 --profile security
+          samwise review --target-pr 123 --profile architecture
+          \`\`\`
+
+          ## Structured output sections
+          - Correctness
+          - Breaking Changes
+          - Missing Tests
+          - Security Risks
+          - Maintainability
+          - Suggested Fixes
+          - Questions for the Author
+
+          ## Why
+          Gives teams an AI reviewer that follows their own rules instead of generic advice.
+          Seeds: existing \`staff-review\` skill."
+
+          # ---------------------------------------------------------------------------
+          # Suite: Samwise Test
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Suite] Samwise Test – systematic test-generation playbooks" \
+            "product-suite,enhancement" \
+            "## Goal
+          Generate and maintain playbooks for unit, integration, contract, snapshot, and regression tests — making test generation systematic instead of ad-hoc.
+
+          ## CLI sketch
+          \`\`\`
+          samwise test add unit-dotnet
+          samwise test add integration-webapi
+          samwise test add contract-pact
+          \`\`\`
+
+          ## Why
+          Reduces the gap between \`samwise init\` (which sets up AI config) and actual code quality."
+
+          # ---------------------------------------------------------------------------
+          # Suite: Samwise Secure
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Suite] Samwise Secure – DevSecOps MCP servers and playbooks" \
+            "product-suite,enhancement" \
+            "## Goal
+          Add MCP servers and playbooks for security-focused workflows, making AI-assisted coding safer by default.
+
+          ## Capabilities
+          - Dependency-vulnerability scanning (nuget-vulnerabilities already present — extend to npm, pip)
+          - Secret hygiene checks
+          - Threat-modelling playbook
+          - Unsafe-command detection (hooks already exist — extend to more patterns)
+          - SBOM generation
+
+          ## CLI sketch
+          \`\`\`
+          samwise secure init
+          samwise secure scan --target ./src
+          \`\`\`
+
+          ## Why
+          Unsafe AI-generated shell commands and leaked secrets are real risks in agentic workflows."
+
+          # ---------------------------------------------------------------------------
+          # Suite: Samwise Build
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Suite] Samwise Build – CI/CD pipeline generation and failure diagnosis" \
+            "product-suite,enhancement" \
+            "## Goal
+          Generate GitHub Actions / Azure DevOps pipeline starters and help diagnose build failures using \`binlog\` and test-result MCP servers.
+
+          ## CLI sketch
+          \`\`\`
+          samwise build scaffold --platform github-actions --stack dotnet
+          samwise build doctor --from-github-run 123456
+          samwise build doctor --binlog ./build.binlog
+          samwise build doctor --test-results ./TestResults
+          \`\`\`
+
+          ## Why
+          Reduces time lost in pipeline failures; \`binlog\` MCP is already wired into Samwise."
+
+          # ---------------------------------------------------------------------------
+          # Suite: Samwise Operate
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Suite] Samwise Operate – runtime and observability agent connections" \
+            "product-suite,enhancement" \
+            "## Goal
+          Connect AI agents to logs, traces, metrics, Kubernetes events, incidents, and runbooks via MCP, enabling safe production investigation.
+
+          ## MCP targets
+          - OpenTelemetry / Seq / Application Insights
+          - Kubernetes (read-only by default)
+          - PagerDuty / OpsGenie incidents
+          - Runbook playbooks
+
+          ## Why
+          Extends Samwise from setup-time to run-time; keeps investigation safe with permission profiles."
+
+          # ---------------------------------------------------------------------------
+          # Suite: Samwise Govern
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Suite] Samwise Govern – enterprise AI-agent governance registry" \
+            "product-suite,enhancement" \
+            "## Goal
+          Provide a central registry of approved skills, MCP servers, permission profiles, policies, and versions so AI adoption is manageable at scale.
+
+          ## Capabilities
+          - Org-level approved skill catalogue
+          - MCP server allowlist / denylist
+          - Permission profile library
+          - Audit log of \`samwise init\` runs
+          - Policy-as-code (e.g. \`require permission-level=conservative\` in regulated repos)
+
+          ## Why
+          Prevents AI-agent sprawl across repos with inconsistent configs."
+
+          # ---------------------------------------------------------------------------
+          # Roadmap: samwise audit
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Roadmap] samwise audit – detect existing AI config health" \
+            "roadmap,enhancement" \
+            "## Goal
+          Detect and report on existing AI configuration files across a repo: MCP servers, permission risks, missing instructions, duplicated guidance, and unsupported platform differences.
+
+          \`\`\`
+          samwise audit
+          samwise audit --platform all
+          \`\`\`
+
+          ## Output
+          - Which platforms are configured
+          - Missing or stale managed blocks
+          - Permission-level risks
+          - Unrecognised MCP servers
+          - Conflicting or duplicate guidance
+
+          ## Why
+          First step for teams adopting Samwise in an existing repo."
+
+          # ---------------------------------------------------------------------------
+          # Roadmap: samwise diff
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Roadmap] samwise diff – show what will change before upgrading" \
+            "roadmap,enhancement" \
+            "## Goal
+          Show exactly what a \`samwise init\` run would add, change, or remove compared to what is currently in the repo — like \`terraform plan\` for AI config.
+
+          \`\`\`
+          samwise diff
+          samwise diff --platform copilot
+          \`\`\`
+
+          ## Why
+          Builds trust: developers can inspect changes before they happen, and CI can fail if unexpected drift is detected."
+
+          # ---------------------------------------------------------------------------
+          # Roadmap: samwise validate
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Roadmap] samwise validate – verify consistency of generated files" \
+            "roadmap,enhancement" \
+            "## Goal
+          Validate that generated files are consistent, MCP config is syntactically valid, managed blocks are intact, and no private overlay values were accidentally committed.
+
+          \`\`\`
+          samwise validate
+          samwise validate --strict
+          \`\`\`
+
+          ## Why
+          Can run in CI to catch config drift or accidental secret leakage in overlay values."
+
+          # ---------------------------------------------------------------------------
+          # Roadmap: skill versioning
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Roadmap] Skill versioning – version, changelog, and compatibility metadata" \
+            "roadmap,enhancement" \
+            "## Goal
+          Every skill/playbook should carry a semantic version, a changelog entry, and compatibility metadata (minimum Samwise version, platform support).
+
+          ## Schema sketch
+          \`\`\`yaml
+          skill: staff-review
+          version: 1.2.0
+          since: samwise 0.5.0
+          platforms: [claude, codex, copilot]
+          changelog:
+            - 1.2.0: Added evolvability section
+            - 1.1.0: Initial release
+          \`\`\`
+
+          ## Why
+          Enables \`samwise diff\` and \`samwise audit\` to surface stale skills; supports org-level skill catalogues in Samwise Govern."
+
+          # ---------------------------------------------------------------------------
+          # Roadmap: profiles
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Roadmap] Profiles – named configuration bundles for common team types" \
+            "roadmap,enhancement" \
+            "## Goal
+          Named profiles that bundle permission levels, skill sets, MCP servers, and settings for common team archetypes.
+
+          ## Proposed profiles
+          - \`solo-dev\` – trusted permissions, all skills, no ADO
+          - \`team-safe\` – conservative permissions, core skills
+          - \`enterprise\` – conservative, audit-log, governance overlay required
+          - \`regulated\` – minimal permissions, no shell hooks, audit-first
+          - \`dotnet-backend\` – .NET-specific skills + binlog + nuget-vuln MCP
+          - \`frontend\` – JS/TS skills
+          - \`platform-engineering\` – Kubernetes + Docker + pipeline skills
+
+          ## CLI sketch
+          \`\`\`
+          samwise init --profile dotnet-backend
+          samwise init --profile enterprise --overlay corp-overlay.json
+          \`\`\`
+
+          ## Why
+          Reduces time-to-value for onboarding; gives enterprises a safe starting point."
+
+          # ---------------------------------------------------------------------------
+          # Roadmap: repo maturity score
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Roadmap] Repo maturity score – AI-agent readiness report" \
+            "roadmap,enhancement" \
+            "## Goal
+          Generate a simple, human-readable score that tells a team how AI-agent-ready their repo is.
+
+          ## Example output
+          \`\`\`
+          Samwise Maturity Report — my-repo
+          ──────────────────────────────────
+          Instructions     ████████░░  80%  (AGENTS.md present, copilot-instructions missing)
+          Skills           ██████░░░░  60%  (5/8 core skills installed)
+          MCP servers      ████████░░  80%  (github, nuget-vuln; missing atlassian)
+          Permissions      ██████████ 100%  (conservative profile active)
+          Hooks            ████░░░░░░  40%  (session-summary only)
+          ──────────────────────────────────
+          Overall          72%  AI-agent ready
+          \`\`\`
+
+          ## Why
+          Powerful for consulting, enterprise onboarding, and team-level reporting; motivates incremental adoption."
+
+          # ---------------------------------------------------------------------------
+          # Roadmap: Samwise MCP Pack
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Roadmap] Samwise MCP Pack – curated MCP server catalogue" \
+            "roadmap,enhancement" \
+            "## Goal
+          Make MCP server configuration a first-class product: a curated, versioned catalogue of MCP servers with safe defaults, authentication guidance, and permission profiles.
+
+          ## CLI sketch
+          \`\`\`
+          samwise mcp list
+          samwise mcp add github
+          samwise mcp add azure-devops --ado-org contoso
+          samwise mcp add nuget-vulnerabilities
+          samwise mcp add binlog
+          samwise mcp add kubernetes --read-only
+          samwise mcp add sql-readonly --url http://localhost:5000/mcp
+          \`\`\`
+
+          ## Why
+          MCP configuration is becoming one of the most painful parts of AI-agent setup; Samwise already has the seed of this in \`init\`."
+
+          # ---------------------------------------------------------------------------
+          # Roadmap: Samwise Standards
+          # ---------------------------------------------------------------------------
+          create_issue \
+            "[Roadmap] Samwise Standards – engineering rules as code" \
+            "roadmap,enhancement" \
+            "## Goal
+          Let organizations define reusable engineering rules (architecture decisions, coding standards, AI instructions) as versioned assets, then render them into each platform's native format.
+
+          ## CLI sketch
+          \`\`\`
+          samwise standards init --stack dotnet
+          samwise standards add clean-architecture
+          samwise standards add ef-core-safe-migrations
+          samwise standards add api-versioning
+          samwise standards render --platform all
+          \`\`\`
+
+          ## Why
+          Becomes \`architecture decision records + coding standards + AI instructions as code\` — a durable, auditable governance artifact."
+
+          echo ""
+          echo "All issues processed."
