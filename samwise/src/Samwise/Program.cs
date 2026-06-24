@@ -21,6 +21,12 @@ if (!Directory.Exists(payloadRoot))
     return 2;
 }
 
+if (opts.Help)
+{
+    PrintUsage();
+    return 0;
+}
+
 switch (opts.Command)
 {
     case "init":
@@ -220,6 +226,9 @@ static Options ParseArgs(string[] args)
             case "--no-input":
                 o.NoInput = true;
                 break;
+            case "--help" or "-h":
+                o.Help = true;
+                break;
         }
     }
 
@@ -292,4 +301,5 @@ sealed class Options
     public bool Force { get; set; }
     public bool DryRun { get; set; }
     public bool NoInput { get; set; }
+    public bool Help { get; set; }
 }

@@ -11,6 +11,7 @@ Run("dotnet", "build", toolProject, "-c", "Release");
 var tests = new (string Name, Action Body)[]
 {
     ("dry-run writes nothing", DryRunWritesNothing),
+    ("--help prints usage and does not execute command", HelpFlagPrintsUsageWithoutExecuting),
     ("conservative profile is default", ConservativeProfileIsDefault),
     ("trusted profile allows convenience tools", TrustedProfileAllowsConvenienceTools),
     ("existing hook arrays are appended and deduped", ExistingHookArraysAreAppendedAndDeduped),
@@ -57,6 +58,23 @@ void DryRunWritesNothing()
 
     Assert(!Directory.Exists(Path.Combine(dir.Path, ".claude")), "dry-run created .claude");
     Assert(!File.Exists(Path.Combine(dir.Path, ".mcp.json")), "dry-run created .mcp.json");
+}
+
+void HelpFlagPrintsUsageWithoutExecuting()
+{
+    using var dir = TempDir();
+    var (stdout, exitCode) = RunToolCapture("init", "--help", "--target", dir.Path, "--no-input");
+
+    Assert(exitCode == 0, $"--help exited with {exitCode}");
+    Assert(stdout.Contains("samwise"), "--help output does not mention samwise");
+    Assert(stdout.Contains("Usage"), "--help output missing Usage section");
+    Assert(!Directory.Exists(Path.Combine(dir.Path, ".claude")), "--help should not create .claude directory");
+    Assert(!File.Exists(Path.Combine(dir.Path, ".mcp.json")), "--help should not create .mcp.json");
+
+    var (stdout2, exitCode2) = RunToolCapture("init", "-h", "--target", dir.Path, "--no-input");
+    Assert(exitCode2 == 0, $"-h exited with {exitCode2}");
+    Assert(stdout2.Contains("Usage"), "-h output missing Usage section");
+    Assert(!Directory.Exists(Path.Combine(dir.Path, ".claude")), "-h should not create .claude directory");
 }
 
 void ConservativeProfileIsDefault()
@@ -269,6 +287,22 @@ HashSet<string> Strings(JsonNode? node)
 }
 
 void RunTool(params string[] args) => Run(toolExe, args);
+
+(string Stdout, int ExitCode) RunToolCapture(params string[] args)
+{
+    var psi = new ProcessStartInfo(toolExe)
+    {
+        WorkingDirectory = repoRoot,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true
+    };
+    foreach (var arg in args) psi.ArgumentList.Add(arg);
+
+    using var process = Process.Start(psi) ?? throw new InvalidOperationException($"Could not start {toolExe}");
+    string stdout = process.StandardOutput.ReadToEnd();
+    process.WaitForExit();
+    return (stdout, process.ExitCode);
+}
 
 void Run(string fileName, params string[] args)
 {
