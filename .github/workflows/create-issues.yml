@@ -44,9 +44,11 @@ jobs:
           # Ensure labels exist
           # ---------------------------------------------------------------------------
           for label in "product-suite" "roadmap" "enhancement"; do
-            gh label create "$label" --repo "$REPO" --force \
-              --description "Samwise product-suite tracking" \
-              --color "0075ca" 2>/dev/null || true
+            if ! gh label list --repo "$REPO" --json name --jq '.[].name' | grep -Fxq "$label"; then
+              gh label create "$label" --repo "$REPO" \
+                --description "Samwise tracking" \
+                --color "0075ca"
+            fi
           done
 
           # ---------------------------------------------------------------------------
