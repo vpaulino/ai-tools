@@ -310,14 +310,18 @@ static int LaunchClaudeAudit(string targetDir, string prompt, AuditOptions audit
 
     if (headless)
     {
-        string stdout = process.StandardOutput.ReadToEnd();
-        string stderr = process.StandardError.ReadToEnd();
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
         process.WaitForExit();
+        string stdout = stdoutTask.GetAwaiter().GetResult();
+        string stderr = stderrTask.GetAwaiter().GetResult();
 
         if (!string.IsNullOrWhiteSpace(audit.OutputFile))
         {
             string outputPath = Path.GetFullPath(Path.Combine(targetDir, audit.OutputFile));
-            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+            string? outputDir = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(outputDir))
+                Directory.CreateDirectory(outputDir);
             File.WriteAllText(outputPath, stdout);
             Console.WriteLine($"Audit report saved to: {outputPath}");
         }
