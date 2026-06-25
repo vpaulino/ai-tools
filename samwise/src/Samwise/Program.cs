@@ -186,7 +186,7 @@ static int RunAudit(string payloadRoot, Options o)
     string auditSkillSrc = Path.Combine(payloadRoot, "skills", "audit-plugin");
     if (!Directory.Exists(auditSkillSrc))
     {
-        Console.Error.WriteLine($"FATAL: audit skill payload not found ({auditSkillSrc}).");
+        Console.Error.WriteLine($"FATAL: audit skill payload not found ({auditSkillSrc}). Ensure Samwise is installed correctly and payload files are present.");
         return 2;
     }
     Io.CopyTree(auditSkillSrc, Path.Combine(target, ".claude", "skills", "audit-plugin"),
@@ -331,10 +331,36 @@ static int LaunchClaudeAudit(string targetDir, string prompt, AuditOptions audit
         return process.ExitCode;
     }
 
-    process.StandardInput.WriteLine(prompt);
-    process.StandardInput.Flush();
+    if (!TryWriteInteractivePrompt(process, prompt))
+    {
+        Console.Error.WriteLine("FATAL: failed to send initial audit prompt to Claude interactive session.");
+        return 1;
+    }
     process.WaitForExit();
     return process.ExitCode;
+}
+
+static bool TryWriteInteractivePrompt(Process process, string prompt)
+{
+    for (int attempt = 0; attempt < 5; attempt++)
+    {
+        try
+        {
+            if (process.HasExited) return false;
+            process.StandardInput.WriteLine(prompt);
+            process.StandardInput.Flush();
+            return true;
+        }
+        catch (IOException) when (!process.HasExited)
+        {
+            Thread.Sleep(100);
+        }
+        catch (InvalidOperationException) when (!process.HasExited)
+        {
+            Thread.Sleep(100);
+        }
+    }
+    return false;
 }
 
 static bool IsCommandOnPath(string command)
