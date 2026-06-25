@@ -332,7 +332,7 @@ static int LaunchClaudeAudit(string targetDir, string prompt, AuditOptions audit
     }
 
     process.StandardInput.WriteLine(prompt);
-    process.StandardInput.Close();
+    process.StandardInput.Flush();
     process.WaitForExit();
     return process.ExitCode;
 }

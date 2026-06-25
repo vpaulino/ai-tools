@@ -20,8 +20,8 @@ Assess whether the plugin has the expected files and organization:
 - Frontmatter/manifest presence where applicable
 
 Scoring:
-- **Rookie**: major structure gaps; key files missing.
-- **Intermediate**: core files exist but some important gaps or weak organization.
+- **Rookie**: key expected files are missing (for example README, entry-point instruction, or examples).
+- **Intermediate**: core files exist but documentation structure is incomplete or organization is weak.
 - **Mature**: complete structure with clear, consistent organization.
 
 ### 2) Description quality
