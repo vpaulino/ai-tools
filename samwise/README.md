@@ -168,6 +168,7 @@ hands-off local assistant.
 ```text
 samwise init [options]
 samwise list
+samwise audit <plugin-name> [options]
 ```
 
 | Option | Meaning |
@@ -178,9 +179,28 @@ samwise list
 | `--ado-org <name>` | Adds the Azure DevOps MCP server for that organization. |
 | `--sql-mcp-url <url>` | Adds a SQL/database HTTP MCP endpoint. |
 | `--overlay <file>` | Merges extra private servers, skills, or (Claude) settings. |
+| `--plugins-dir <path>` | For `audit`, plugin parent folder. Defaults to `plugins` then falls back to repo root. |
+| `--output <file>` | For `audit`, save the headless audit report output to a file. |
+| `--interactive` | For `audit`, run Claude in interactive mode (default). |
+| `--no-interactive` | For `audit`, run Claude in headless mode (`-p`) and print report output. |
 | `--no-input` | Never prompt; skip optional values and hook replacement prompts. |
 | `-f, --force` | Overwrite existing files and incompatible config keys. |
 | `-n, --dry-run` | Show the planned changes without writing. |
+
+## Audit Plugins
+
+Run plugin audits in repositories that contain Claude marketplace plugins:
+
+```pwsh
+samwise audit dev-plugin
+samwise audit business-plugin --no-interactive --output artifacts/business-plugin-audit.md
+samwise audit infra-plugin --plugins-dir marketplace/plugins --dry-run
+```
+
+`audit` installs the built-in `audit-plugin` skill under `.claude/skills/`,
+ensures conservative Claude settings are merged, renders an audit prompt from
+payload, and launches the local `claude` CLI with read-only tools
+(`Read,Glob,Grep,LS`) to generate a maturity report and recommendations.
 
 ## Merge Semantics
 
