@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Diagnostics;
 
 // ---------------------------------------------------------------------------
 // samwise - the loyal tool that helps a developer carry their work.
@@ -33,6 +34,8 @@ switch (opts.Command)
         return RunInit(payloadRoot, opts);
     case "list":
         return RunList(payloadRoot);
+    case "audit":
+        return RunAudit(payloadRoot, opts);
     default:
         PrintUsage();
         return opts.Command is null ? 0 : 1;
@@ -152,6 +155,240 @@ static int RunList(string payloadRoot)
     return 0;
 }
 
+static int RunAudit(string payloadRoot, Options o)
+{
+    if (string.IsNullOrWhiteSpace(o.Audit.PluginName))
+    {
+        Console.Error.WriteLine("FATAL: missing plugin name. Usage: samwise audit <plugin-name> [options]");
+        return 1;
+    }
+
+    string target = Path.GetFullPath(o.Target);
+    string pluginName = o.Audit.PluginName.Trim();
+    if (!TryResolvePluginDir(target, o.Audit.PluginsDir, pluginName, out string pluginDir, out string resolveError))
+    {
+        Console.Error.WriteLine($"FATAL: {resolveError}");
+        return 1;
+    }
+
+    var markdownFiles = Directory.GetFiles(pluginDir, "*.md", SearchOption.AllDirectories)
+        .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+    if (markdownFiles.Count == 0)
+    {
+        Console.Error.WriteLine($"FATAL: plugin '{pluginName}' has no markdown files to audit ({pluginDir}).");
+        return 1;
+    }
+
+    var merge = new MergeOptions(o.Force, o.DryRun, o.NoInput);
+    var log = new ChangeLog();
+
+    string auditSkillSrc = Path.Combine(payloadRoot, "skills", "audit-plugin");
+    if (!Directory.Exists(auditSkillSrc))
+    {
+        Console.Error.WriteLine($"FATAL: audit skill payload not found ({auditSkillSrc}). Ensure Samwise is installed correctly and payload files are present.");
+        return 2;
+    }
+    Io.CopyTree(auditSkillSrc, Path.Combine(target, ".claude", "skills", "audit-plugin"),
+        merge.Force, merge.DryRun, log, "claude:skills/audit-plugin");
+
+    string conservativeSettings = Path.Combine(payloadRoot, "settings.fragment.json");
+    if (!File.Exists(conservativeSettings))
+    {
+        Console.Error.WriteLine($"FATAL: settings profile not found ({conservativeSettings}).");
+        return 2;
+    }
+    Io.MergeSettingsObject(
+        JsonNode.Parse(File.ReadAllText(conservativeSettings))!.AsObject(),
+        Path.Combine(target, ".claude", "settings.json"),
+        merge,
+        log);
+
+    string promptTemplatePath = Path.Combine(payloadRoot, "audit-prompt.md");
+    if (!File.Exists(promptTemplatePath))
+    {
+        Console.Error.WriteLine($"FATAL: audit prompt template not found ({promptTemplatePath}).");
+        return 2;
+    }
+    string prompt = RenderAuditPrompt(File.ReadAllText(promptTemplatePath), pluginName, pluginDir, markdownFiles, target);
+
+    Console.WriteLine($"Samwise: auditing plugin '{pluginName}'");
+    Console.WriteLine($"Target repo: {target}");
+    Console.WriteLine($"Plugin directory: {pluginDir}");
+    Console.WriteLine($"Markdown files: {markdownFiles.Count}");
+    bool headless = !o.Audit.Interactive || !string.IsNullOrWhiteSpace(o.Audit.OutputFile);
+    Console.WriteLine($"Mode: {(headless ? "headless" : "interactive")}");
+    if (!string.IsNullOrWhiteSpace(o.Audit.OutputFile))
+        Console.WriteLine($"Output file: {Path.GetFullPath(Path.Combine(target, o.Audit.OutputFile))}");
+
+    Console.WriteLine();
+    log.Summarize();
+
+    if (o.DryRun)
+    {
+        Console.WriteLine("\nDry run complete. Re-run without --dry-run to execute Claude audit.");
+        Console.WriteLine("\nPrompt preview:");
+        Console.WriteLine(prompt);
+        return 0;
+    }
+
+    return LaunchClaudeAudit(target, prompt, o.Audit);
+}
+
+static bool TryResolvePluginDir(string targetDir, string pluginsDirOption, string pluginName, out string pluginDir, out string error)
+{
+    var candidates = new List<string>();
+    if (!string.IsNullOrWhiteSpace(pluginsDirOption))
+    {
+        string pluginsRoot = Path.IsPathRooted(pluginsDirOption)
+            ? pluginsDirOption
+            : Path.Combine(targetDir, pluginsDirOption);
+        candidates.Add(Path.GetFullPath(Path.Combine(pluginsRoot, pluginName)));
+    }
+    candidates.Add(Path.GetFullPath(Path.Combine(targetDir, pluginName)));
+
+    foreach (string candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+    {
+        if (Directory.Exists(candidate))
+        {
+            pluginDir = candidate;
+            error = "";
+            return true;
+        }
+    }
+
+    pluginDir = "";
+    error = $"plugin '{pluginName}' not found. Checked: {string.Join(", ", candidates)}";
+    return false;
+}
+
+static string RenderAuditPrompt(string template, string pluginName, string pluginDir, IReadOnlyList<string> markdownFiles, string targetDir)
+{
+    string relPluginDir = Path.GetRelativePath(targetDir, pluginDir).Replace('\\', '/');
+    string fileList = string.Join("\n", markdownFiles.Select(f => $"- {Path.GetRelativePath(targetDir, f).Replace('\\', '/')}"));
+    return template
+        .Replace("{{PLUGIN_NAME}}", pluginName)
+        .Replace("{{PLUGIN_DIR}}", relPluginDir)
+        .Replace("{{MARKDOWN_FILE_LIST}}", fileList);
+}
+
+static int LaunchClaudeAudit(string targetDir, string prompt, AuditOptions audit)
+{
+    if (!IsCommandOnPath("claude"))
+    {
+        Console.Error.WriteLine("FATAL: 'claude' CLI was not found on PATH. Install with: npm install -g @anthropic-ai/claude-code");
+        return 1;
+    }
+
+    bool headless = !audit.Interactive || !string.IsNullOrWhiteSpace(audit.OutputFile);
+    var psi = new ProcessStartInfo("claude")
+    {
+        WorkingDirectory = targetDir,
+        UseShellExecute = false
+    };
+    psi.ArgumentList.Add("--allowedTools");
+    psi.ArgumentList.Add("Read,Glob,Grep,LS");
+
+    if (headless)
+    {
+        psi.ArgumentList.Add("-p");
+        psi.ArgumentList.Add(prompt);
+        psi.RedirectStandardOutput = true;
+        psi.RedirectStandardError = true;
+    }
+    else
+    {
+        psi.RedirectStandardInput = true;
+    }
+
+    using var process = Process.Start(psi);
+    if (process is null)
+    {
+        Console.Error.WriteLine("FATAL: could not start 'claude' CLI process.");
+        return 1;
+    }
+
+    if (headless)
+    {
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        process.WaitForExit();
+        string stdout = stdoutTask.GetAwaiter().GetResult();
+        string stderr = stderrTask.GetAwaiter().GetResult();
+
+        if (!string.IsNullOrWhiteSpace(audit.OutputFile))
+        {
+            string outputPath = Path.GetFullPath(Path.Combine(targetDir, audit.OutputFile));
+            string? outputDir = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(outputDir))
+                Directory.CreateDirectory(outputDir);
+            File.WriteAllText(outputPath, stdout);
+            Console.WriteLine($"Audit report saved to: {outputPath}");
+        }
+
+        if (stdout.Length > 0) Console.Write(stdout);
+        if (stderr.Length > 0) Console.Error.Write(stderr);
+        return process.ExitCode;
+    }
+
+    if (!TryWriteInteractivePrompt(process, prompt))
+    {
+        Console.Error.WriteLine("FATAL: failed to send initial audit prompt to Claude interactive session.");
+        return 1;
+    }
+    process.WaitForExit();
+    return process.ExitCode;
+}
+
+static bool TryWriteInteractivePrompt(Process process, string prompt)
+{
+    for (int attempt = 0; attempt < 5; attempt++)
+    {
+        try
+        {
+            if (process.HasExited) return false;
+            process.StandardInput.WriteLine(prompt);
+            process.StandardInput.Flush();
+            return true;
+        }
+        catch (IOException) when (!process.HasExited)
+        {
+            Thread.Sleep(100);
+        }
+        catch (InvalidOperationException) when (!process.HasExited)
+        {
+            Thread.Sleep(100);
+        }
+    }
+    return false;
+}
+
+static bool IsCommandOnPath(string command)
+{
+    string pathValue = Environment.GetEnvironmentVariable("PATH") ?? "";
+    if (OperatingSystem.IsWindows())
+    {
+        string pathext = Environment.GetEnvironmentVariable("PATHEXT") ?? ".EXE;.CMD;.BAT;.COM";
+        var exts = pathext.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        foreach (string dir in pathValue.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            foreach (string ext in exts)
+            {
+                string candidate = Path.Combine(dir, command + ext);
+                if (File.Exists(candidate)) return true;
+            }
+            if (File.Exists(Path.Combine(dir, command))) return true;
+        }
+        return false;
+    }
+
+    foreach (string dir in pathValue.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+    {
+        if (File.Exists(Path.Combine(dir, command))) return true;
+    }
+    return false;
+}
+
 static string? ResolveAdoOrg(string? explicitOrg, bool noInput)
 {
     if (!string.IsNullOrWhiteSpace(explicitOrg)) return explicitOrg.Trim();
@@ -195,7 +432,17 @@ static Options ParseArgs(string[] args)
         Target = Directory.GetCurrentDirectory()
     };
 
-    for (int i = 0; i < args.Length; i++)
+    int startIndex = 0;
+    if (o.Command is not null) startIndex = 1;
+    if (string.Equals(o.Command, "audit", StringComparison.OrdinalIgnoreCase)
+        && startIndex < args.Length
+        && !args[startIndex].StartsWith('-'))
+    {
+        o.Audit.PluginName = args[startIndex];
+        startIndex++;
+    }
+
+    for (int i = startIndex; i < args.Length; i++)
     {
         switch (args[i])
         {
@@ -225,6 +472,18 @@ static Options ParseArgs(string[] args)
                 break;
             case "--no-input":
                 o.NoInput = true;
+                break;
+            case "--plugins-dir" when i + 1 < args.Length:
+                o.Audit.PluginsDir = args[++i];
+                break;
+            case "--output" when i + 1 < args.Length:
+                o.Audit.OutputFile = args[++i];
+                break;
+            case "--interactive":
+                o.Audit.Interactive = true;
+                break;
+            case "--no-interactive":
+                o.Audit.Interactive = false;
                 break;
             case "--help" or "-h":
                 o.Help = true;
@@ -260,6 +519,8 @@ samwise - bootstrap a repository's AI-assistant setup (Claude Code / Codex / Cop
 Usage:
   samwise init [options]   Install skills/playbooks, MCP servers & settings into a repo.
   samwise list             Show the neutral core and per-platform outputs.
+  samwise audit <plugin> [options]
+                           Audit a Claude marketplace plugin's markdown quality.
 
 Options:
   -t, --target <dir>              Target repo (default: current directory).
@@ -271,6 +532,10 @@ Options:
                                   If omitted, init prompts for it (Enter to skip).
       --overlay <file>            JSON overlay merged on top of the neutral core. May contain
                                   "mcpServers", "skillsDir", and (Claude only) "settings".
+      --plugins-dir <path>        Plugin parent folder for 'audit' (default: plugins; falls back to repo root).
+      --output <file>             For 'audit', save headless Claude output to file (relative to target unless absolute).
+      --interactive               For 'audit', keep Claude in interactive mode (default).
+      --no-interactive            For 'audit', run Claude headless via -p and print report.
       --no-input                  Never prompt; skip optional servers and hook replacement prompts.
   -f, --force                     Overwrite existing files / incompatible config keys.
   -n, --dry-run                   Show planned changes without writing.
@@ -302,4 +567,13 @@ sealed class Options
     public bool DryRun { get; set; }
     public bool NoInput { get; set; }
     public bool Help { get; set; }
+    public AuditOptions Audit { get; } = new();
+}
+
+sealed class AuditOptions
+{
+    public string? PluginName { get; set; }
+    public string PluginsDir { get; set; } = "plugins";
+    public string? OutputFile { get; set; }
+    public bool Interactive { get; set; } = true;
 }

@@ -20,7 +20,10 @@ var tests = new (string Name, Action Body)[]
     ("codex renders AGENTS.md, playbooks and config.toml", CodexRendererWritesAgentsPlaybooksAndToml),
     ("codex config.toml is idempotent on rerun", CodexTomlIsIdempotent),
     ("copilot renders instructions, applyTo and vscode mcp", CopilotRendererWritesInstructionsApplyToAndMcp),
-    ("platform all renders every platform", AllPlatformRendersEverything)
+    ("platform all renders every platform", AllPlatformRendersEverything),
+    ("audit dry-run resolves plugin under plugins folder", AuditDryRunResolvesPluginFromPluginsFolder),
+    ("audit dry-run falls back to plugin at repo root", AuditDryRunFallsBackToRepoRoot),
+    ("audit fails when plugin has no markdown files", AuditFailsWhenPluginHasNoMarkdown)
 };
 
 var failures = new List<string>();
@@ -264,6 +267,46 @@ void AllPlatformRendersEverything()
     Assert(File.Exists(Path.Combine(dir.Path, ".claude", "settings.json")), "all: claude settings missing");
     Assert(File.Exists(Path.Combine(dir.Path, "AGENTS.md")), "all: AGENTS.md missing");
     Assert(File.Exists(Path.Combine(dir.Path, ".github", "copilot-instructions.md")), "all: copilot instructions missing");
+}
+
+void AuditDryRunResolvesPluginFromPluginsFolder()
+{
+    using var dir = TempDir();
+    string pluginDir = Path.Combine(dir.Path, "plugins", "dev-plugin");
+    Directory.CreateDirectory(pluginDir);
+    File.WriteAllText(Path.Combine(pluginDir, "README.md"), "# Dev Plugin");
+    File.WriteAllText(Path.Combine(pluginDir, "CONTRIBUTING.md"), "# Contributing");
+
+    var (stdout, exitCode) = RunToolCapture("audit", "dev-plugin", "--target", dir.Path, "--dry-run", "--no-input");
+    Assert(exitCode == 0, $"audit dry-run exited with {exitCode}");
+    Assert(stdout.Contains("Plugin directory: " + pluginDir), "audit should resolve plugin under plugins directory");
+    Assert(stdout.Contains("Markdown files: 2"), "audit should count markdown files");
+    Assert(stdout.Contains("- plugins/dev-plugin/README.md"), "prompt preview should include README markdown file");
+    Assert(!File.Exists(Path.Combine(dir.Path, ".claude", "skills", "audit-plugin", "SKILL.md")), "dry-run should not install audit skill files");
+}
+
+void AuditDryRunFallsBackToRepoRoot()
+{
+    using var dir = TempDir();
+    string pluginDir = Path.Combine(dir.Path, "business-plugin");
+    Directory.CreateDirectory(pluginDir);
+    File.WriteAllText(Path.Combine(pluginDir, "README.md"), "# Business Plugin");
+
+    var (stdout, exitCode) = RunToolCapture("audit", "business-plugin", "--target", dir.Path, "--dry-run", "--no-input");
+    Assert(exitCode == 0, $"audit dry-run exited with {exitCode}");
+    Assert(stdout.Contains("Plugin directory: " + pluginDir), "audit should fall back to plugin at repo root");
+    Assert(stdout.Contains("- business-plugin/README.md"), "prompt preview should include root plugin markdown file");
+}
+
+void AuditFailsWhenPluginHasNoMarkdown()
+{
+    using var dir = TempDir();
+    string pluginDir = Path.Combine(dir.Path, "plugins", "obs-plugin");
+    Directory.CreateDirectory(pluginDir);
+    File.WriteAllText(Path.Combine(pluginDir, "notes.txt"), "no markdown");
+
+    var (_, exitCode) = RunToolCapture("audit", "obs-plugin", "--target", dir.Path, "--dry-run", "--no-input");
+    Assert(exitCode != 0, "audit should fail when plugin has no markdown files");
 }
 
 int CountOccurrences(string haystack, string needle)
